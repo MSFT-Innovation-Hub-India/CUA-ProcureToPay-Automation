@@ -1,0 +1,9 @@
+The Business rules to detect anomalies in Procure to Pay (P2P) Process are:
+
+- Invoice date in Purchase Invoice must be within the contract date
+- The Contract must be in vogue. Ensure the status of the Contract indicates it is in vogue.
+- Invoice total amount should be within the contract value
+- the currencies in the Invoice and the Contract should match
+- all items in the Invoice must be based on the list of items in the Contract, including the unit price, currency, etc., and the invoiced quantity must be less than the quantity mentioned in the contract.
+- Any other criteria I may have missed mentioning here. Use your domain expertise to interpret the data right and provide professional guidance.
+- ignore minor rounding off differences in the amounts.

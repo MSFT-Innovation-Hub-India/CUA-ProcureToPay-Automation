@@ -1,0 +1,86 @@
+### Step-by-Step Analysis and Verdict:
+
+#### Business Rules Considered:
+Based on the retrieved rules:
+1. Invoice date should be within the contract validity period.
+2. Contract must still be active (in vogue).
+3. Invoice total value should be within the contract value.
+4. Currency in the invoice and contract must match.
+5. Line items, unit prices, and quantities in the Invoice should align with the Contract; invoiced quantity must not exceed contract quantity.
+6. Items not in the contract should be flagged.
+
+---
+
+### **Validation of Invoice Header Against Contract Header**
+Here is the evaluation of the Invoice Header:
+
+| **Header Field**       | **Invoice Details**     | **Contract Details**               | **Validation**             |
+|-------------------------|-------------------------|-------------------------------------|----------------------------|
+| Contract ID            | CON000002              | CON000002                          | ✅ Matches                 |
+| Supplier ID            | SUP0008                | SUP0008                            | ✅ Matches                 |
+| Invoice Date           | 2023-06-15            | Contract Expired on 2023-01-07     | ❌ Invoice issued after contract expiry |
+| Invoice Value (USD)    | 113,130.16             | 66,543.39                          | ❌ Exceeds contract value  |
+| Currency               | USD                    | USD                                 | ✅ Matches                 |
+| Contract Status        | -                      | Expired                            | ❌ Not in vogue            |
+
+---
+
+### **Validation of Invoice Lines Against Contract Lines**
+Here is the evaluation of line items:
+
+| **Invoice Line Field**    | **Invoice Details**                           | **Contract Details**                           | **Validation**                          
+                                                          |
+|---------------------------|-----------------------------------------------|-----------------------------------------------|--------------------------------------------------------------------------------------------------|
+| Item ID                  | ITEM0040                                      | ITEM0040                                      | ✅ Matches                                
+                                                       |
+| Quantity                 | 116                                           | 78                                            | ❌ Exceeds allowed quantity               
+                                                       |
+| Unit Price               | 136.75                                        | 136.75                                        | ✅ Matches                                
+                                                       |
+| Total Price              | 15,863.00                                     | 10,666.50                                     | ❌ Exceeds contract value                 
+                                                       |
+| Description              | Description for ITEM0040                      | Description for ITEM0040                      | ✅ Matches                                
+                                                       |
+| Delivery Date            | Not provided                                  | 2023-01-01                                    | ❌ Not fulfilled before delivery deadline                                                        |
+| Item ID                  | ITEM0082                                      | ITEM0082                                      | ✅ Matches                                
+                                                       |
+| Quantity                 | 116                                           | 57                                            | ❌ Exceeds allowed quantity               
+                                                       |
+| Unit Price               | 554.62                                        | 479.87                                        | ❌ Does not match                         
+                                                       |
+| Total Price              | 64,335.92                                     | 27,352.59                                     | ❌ Exceeds contract value                 
+                                                       |
+| Description              | Description for ITEM0082                      | Description for ITEM0082                      | ✅ Matches                                
+                                                       |
+| Delivery Date            | Not provided                                  | 2022-11-26                                    | ❌ Not fulfilled before delivery deadline                                                        |
+| Item ID                  | ITEM0011                                      | ITEM0011                                      | ✅ Matches                                
+                                                       |
+| Quantity                 | 36                                            | 21                                            | ❌ Exceeds allowed quantity               
+                                                       |
+| Unit Price               | 398.09                                        | 398.09                                        | ✅ Matches                                
+                                                       |
+| Total Price              | 14,331.24                                     | 8,359.89                                      | ❌ Exceeds contract value                 
+                                                       |
+| Description              | Description for ITEM0011                      | Description for ITEM0011                      | ✅ Matches                                
+                                                       |
+| Delivery Date            | Not provided                                  | 2022-11-29                                    | ❌ Not fulfilled before delivery deadline                                                        |
+| Item ID                  | ITEM0031                                      | ITEM0031                                      | ✅ Matches                                
+                                                       |
+| Quantity                 | 36                                            | 47                                            | ✅ Within contract allowance              
+                                                       |
+| Unit Price               | 475.00                                        | 429.03                                        | ❌ Does not match                         
+                                                       |
+| Total Price              | 17,100.00                                     | 20,164.41                                     | ✅ Within contract allowance              
+                                                       |
+| Description              | Description for ITEM0031                      | Description for ITEM0031                      | ✅ Matches                                                                                       |
+| Delivery Date            | Not provided                                  | 2022-12-09                                    | ❌ Not fulfilled before delivery deadline                                                        |
+| Item ID                  | ITEM9999                                      | Not in contract                               | -                                             | ❌ Extra item not in the contract                                                               |
+
+---
+
+### **Summary of Anomalies**
+1. Contract is expired as of **2023-01-07**.
+2. Invoice total value **exceeds the contract value**.
+3. Quantities of ITEM0040, ITEM0082, and ITEM0011 **exceed allowed contract quantities**.
+4. Delivery deadlines for all invoiced items appear to have been missed.
+5. ITEM9999 is an **extra item not listed in the contract**.
