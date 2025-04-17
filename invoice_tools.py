@@ -171,109 +171,228 @@ async def process_model_response(client, response, page, max_iterations=ITERATIO
         print("Reached maximum number of iterations. Stopping.")
         return response_string
 
-async def retrieve_contract(contract_id:str) -> str:  
+async def post_invoice(purchase_invoice:str, status:str, remarks:str) -> str:  
     """
-    get the contract details for the given contract_id
-
-    :param contract_id (str): The contract id against which the Supplier fulfils order and raises the Purchase Invoice.
-    :return: retrieved contract details.
-    :rtype: Any
+    Post the purchase invoice header, lines based on the purchase invoice header and lines data, and the status of the purchase invoice and remarks on the approval or rejection of the purchase invoice.
+    :param purchase_invoice (str): The purchase invoice header and lines data in markdown or JSON format.
+    :param status (str): status of approval/rejection of the Purchase Invoice.
+    :param remarks (str): the remarks provided by the Invoice approver, when the Invoice status is rejected.
+    :return: a string indicating whether the posting was successful or not, with details in case of failure.
+    :rtype: str
     """
     response_string = None
-    # Initialize OpenAI client
-    client = AzureOpenAI(
-        azure_endpoint=AZURE_ENDPOINT,
-        azure_ad_token_provider=token_provider,
-        api_version=API_VERSION
-    )
     
-    # Initialize Playwright
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(
-            headless=False,
-            args=[f"--window-size={DISPLAY_WIDTH},{DISPLAY_HEIGHT}", "--disable-extensions"]
+    # Input validation
+    if not purchase_invoice:
+        error_msg = "Missing purchase invoice data"
+        print(error_msg)
+        return json.dumps({"error": error_msg, "status": "failed"})
+        
+    if not status or status.lower() not in ["approved", "rejected"]:
+        error_msg = f"Invalid status value: {status}. Must be 'Approved' or 'Rejected'."
+        print(error_msg)
+        return json.dumps({"error": error_msg, "status": "failed"})
+        
+    if status.lower() == "rejected" and not remarks:
+        error_msg = "Remarks are required when invoice status is 'Rejected'"
+        print(error_msg)
+        return json.dumps({"error": error_msg, "status": "failed"})
+    
+    # Initialize OpenAI client
+    try:
+        client = AzureOpenAI(
+            azure_endpoint=AZURE_ENDPOINT,
+            azure_ad_token_provider=token_provider,
+            api_version=API_VERSION
         )
         
-        context = await browser.new_context(
-            viewport={"width": DISPLAY_WIDTH, "height": DISPLAY_HEIGHT},
-            accept_downloads=True
-        )
+        print(f"Starting invoice posting process with status: {status}")
         
-        page = await context.new_page()
-        
-        # Navigate to starting page
-        await page.goto(f"https://p2p-erp-web.gentleflower-4e1ad251.swedencentral.azurecontainerapps.io/ContractHeaders/ContractLines/{contract_id}", wait_until="domcontentloaded")
-        print("Browser initialized to Bing.com")
-        
-        # Main interaction loop
-        waiting_for_data = True
-        try:
-            while waiting_for_data:
-                print("\n" + "="*50)
-                # user_input = input("Enter a task to perform (or 'exit' to quit): ")
-                user_input = "Get the contract header data and contract lines data from the current page you are in and return that as a JSON object."
+        # Initialize Playwright with proper error handling
+        async with async_playwright() as playwright:
+            try:
+                browser = await playwright.chromium.launch(
+                    headless=False,
+                    args=[f"--window-size={DISPLAY_WIDTH},{DISPLAY_HEIGHT}", "--disable-extensions"]
+                )
                 
-                if user_input.lower() in ('exit', 'quit'):
-                    break
+                context = await browser.new_context(
+                    viewport={"width": DISPLAY_WIDTH, "height": DISPLAY_HEIGHT},
+                    accept_downloads=True
+                )
                 
-                if not user_input.strip():
-                    continue
+                page = await context.new_page()
                 
-                # Take initial screenshot
-                screenshot_base64 = await take_screenshot(page)
-                print("\nTake initial screenshot")
+                # Navigate to invoice creation page
+                try:
+                    print("Navigating to invoice creation page")
+                    await page.goto(
+                        "https://p2p-erp-web.gentleflower-4e1ad251.swedencentral.azurecontainerapps.io/PurchaseInvoiceHeaders/Create", 
+                        wait_until="domcontentloaded",
+                        timeout=30000  # Increased timeout to 30 seconds
+                    )
+                    print("Successfully navigated to invoice creation page")
+                except Exception as e:
+                    error_msg = f"Failed to navigate to invoice creation page: {str(e)}"
+                    print(error_msg)
+                    await context.close()
+                    await browser.close()
+                    return json.dumps({"error": error_msg, "status": "failed"})
                 
+                # Prepare user input with the invoice data
+                l_user_input = f"""
+                On the current page you are in, you need to perform the following tasks:
                 
-                l_instructions = """
-                You are an AI agent with the ability to control a browser. You can control the keyboard and mouse. You take a screenshot after each action to check if your action was successful.
-                Once you have completed the requested task you should stop running and pass back control to your human supervisor.
+                Here is the invoice data to enter:
+                {purchase_invoice}
+                
+                The invoice status is: {status}
+                
+                {f"Rejection remarks: {remarks}" if status.lower() == "rejected" else ""}
+                
+                Step 1) Create the Purchase Invoice Header data.
+                1. Enter the purchase invoice header data (PurchaseInvoiceNo, ContractReference, SupplierId, TotalInvoiceValue, InvoiceDate) based on the input provided above.
+                2. Set the Status field value to '{status}'.
+                3. {f"Enter the remarks in the Remarks field: {remarks}" if status.lower() == "rejected" else "Leave the Remarks field empty."}
+                4. Save the purchase invoice header data.
+                5. Acknowledge the success message displayed on the screen.
+                
+                Step 2) Create the Purchase Invoice Lines data.
+                1. Click on the 'Add Line' button to add a new line item.
+                2. Enter the purchase invoice lines data (Description, Quantity, Unit Price, Total Price) based on the input provided above.
+                3. Click on the 'Save' button to save the purchase invoice lines data.
+                4. Acknowledge the success message displayed on the screen.
+                5. Repeat the steps 1 to 4 for all the purchase invoice lines data provided above.
+                
+                Step 3) If the Purchase Invoice Header and Lines data is successfully posted, then return 'True', else return 'False'.
                 """
                 
-                # Initial request to the model
-                response = client.responses.create(
-                    model=MODEL,
-                    tools=[{
-                        "type": "computer_use_preview",
-                        "display_width": DISPLAY_WIDTH,
-                        "display_height": DISPLAY_HEIGHT,
-                        "environment": "browser"
-                    }],
-                    instructions = l_instructions,
-                    input=[{
-                        "role": "user",
-                        "content": [{
-                            "type": "input_text",
-                            "text": user_input
-                        }, {
-                            "type": "input_image",
-                            "image_url": f"data:image/png;base64,{screenshot_base64}"
-                        }]
-                    }],
-                    reasoning={"generate_summary": "concise"},
-                    truncation="auto"
-                )
-                print("\nSending model initial screenshot and instructions")
-
-                # Process model actions
-                response_string=await process_model_response(client, response, page)
-                print("CONTRACT DATA:", response_string)
-                if response_string is not None:
-                    print(f"Returning the contract details back to the caller \n{response_string}")
-                    waiting_for_data = False
-                    return response_string
+                # Main interaction loop with retry mechanism
+                waiting_for_data = True
+                retry_count = 0
+                max_retries = 3
                 
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            response_string = f"An error occurred: {e}"
-            import traceback
-            traceback.print_exc()
-        
-        finally:
-            # Close browser
-            await context.close()
-            await browser.close()
-            print("Browser closed.")
-        return response_string
+                try:
+                    while waiting_for_data and retry_count < max_retries:
+                        print(f"\n{'='*50}\nAttempt {retry_count + 1} of {max_retries}")
+                        
+                        # Take initial screenshot
+                        try:
+                            screenshot_base64 = await take_screenshot(page)
+                            print("Successfully captured initial screenshot")
+                        except Exception as e:
+                            error_msg = f"Failed to capture screenshot: {str(e)}"
+                            print(error_msg)
+                            retry_count += 1
+                            await asyncio.sleep(1)  # Wait before retry
+                            continue
+                        
+                        l_instructions = """
+                        You are an AI agent with the ability to control a browser. You can control the keyboard and mouse. You take a screenshot after each action to check if your action was successful.
+                        Once you have completed the requested task you should stop running and pass back control to your human supervisor.
+                        """
+                        
+                        # Make API call to model
+                        try:
+                            print("Sending model instructions and screenshot...")
+                            response = client.responses.create(
+                                model=MODEL,
+                                tools=[{
+                                    "type": "computer_use_preview",
+                                    "display_width": DISPLAY_WIDTH,
+                                    "display_height": DISPLAY_HEIGHT,
+                                    "environment": "browser"
+                                }],
+                                instructions=l_instructions,
+                                input=[{
+                                    "role": "user",
+                                    "content": [{
+                                        "type": "input_text",
+                                        "text": l_user_input
+                                    }, {
+                                        "type": "input_image",
+                                        "image_url": f"data:image/png;base64,{screenshot_base64}"
+                                    }]
+                                }],
+                                reasoning={"generate_summary": "concise"},
+                                truncation="auto"
+                            )
+                            print("Successfully sent model instructions and screenshot")
+                        except Exception as e:
+                            error_msg = f"Failed to create model response: {str(e)}"
+                            print(error_msg)
+                            retry_count += 1
+                            await asyncio.sleep(2)  # Wait before retry
+                            continue
+                        
+                        # Process model response
+                        try:
+                            response_string = await process_model_response(client, response, page)
+                            print(f"Response from posting invoice: {response_string}")
+                            
+                            if response_string is not None:
+                                # Check for success indicators in the response
+                                if "true" in response_string.lower() or "success" in response_string.lower():
+                                    result = {
+                                        "status": "success",
+                                        "message": "Purchase invoice successfully posted",
+                                        "details": response_string
+                                    }
+                                    print("Invoice posting completed successfully")
+                                else:
+                                    result = {
+                                        "status": "partial",
+                                        "message": "Purchase invoice may not have been fully posted",
+                                        "details": response_string
+                                    }
+                                    print("Invoice posting may not have completed successfully")
+                                
+                                waiting_for_data = False
+                                return json.dumps(result)
+                            else:
+                                print("No response received from model, retrying...")
+                                retry_count += 1
+                                await asyncio.sleep(2)  # Wait before retry
+                        except Exception as e:
+                            error_msg = f"Error processing model response: {str(e)}"
+                            print(error_msg)
+                            retry_count += 1
+                            await asyncio.sleep(2)  # Wait before retry
+                    
+                    if retry_count >= max_retries:
+                        error_msg = f"Failed to post invoice data after {max_retries} attempts"
+                        print(error_msg)
+                        return json.dumps({"error": error_msg, "status": "failed"})
+                
+                except Exception as e:
+                    error_msg = f"An error occurred during invoice posting: {str(e)}"
+                    print(error_msg)
+                    import traceback
+                    traceback.print_exc()
+                    return json.dumps({"error": error_msg, "status": "failed"})
+                
+                finally:
+                    # Close browser
+                    try:
+                        await context.close()
+                        await browser.close()
+                        print("Browser closed.")
+                    except Exception as e:
+                        print(f"Error closing browser: {str(e)}")
+            
+            except Exception as e:
+                error_msg = f"Failed to initialize browser for invoice posting: {str(e)}"
+                print(error_msg)
+                import traceback
+                traceback.print_exc()
+                return json.dumps({"error": error_msg, "status": "failed"})
     
-# if __name__ == "__main__":
-#     asyncio.run(main())
+    except Exception as e:
+        error_msg = f"Failed to initialize invoice posting process: {str(e)}"
+        print(error_msg)
+        import traceback
+        traceback.print_exc()
+        return json.dumps({"error": error_msg, "status": "failed"})
+    
+    # Default return if we somehow get here
+    return json.dumps({"error": "Unknown error occurred", "status": "failed"})

@@ -2,6 +2,7 @@ import config
 
 from openai import AzureOpenAI
 from contract_tools import retrieve_contract
+from invoice_tools import post_invoice
 import base64
 import json
 import os
@@ -27,6 +28,7 @@ client = AzureOpenAI(
 
 available_functions = {
     "retrieve_contract": retrieve_contract,
+    "post_invoice": post_invoice,
 }
 
 # read the Purchase Invoice image(s) to be sent as input to the model
@@ -47,6 +49,29 @@ tools_list =  [
             "max_num_results": 20,
         },
         {
+            "type": "function",
+            "name": "post_invoice",
+            "description": "post the purchase invoice header and line items data to the system",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "purchase_invoice": {
+                        "type": "string",
+                        "description": "the purchase invoice header and line items data in text/ markdown format",
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "the status of approval or rejection of the purchase invoice",
+                    },
+                    "remarks": {
+                        "type": "string",
+                        "description": "any remarks or comments related to the purchase invoice rejection",
+                    }
+                },
+                "required": ["purchase_invoice","status","remarks"],
+            },
+        },
+                {
             "type": "function",
             "name": "retrieve_contract",
             "description": "fetch contract details for the given contract_id",
@@ -75,10 +100,20 @@ Step 4: Then, apply the retrieved business rules to match the invoice line items
     - When providing the verdict, depict the results in the form of a Markdown table, matching details from the Invoice and Contract side-by-side. Verification of Invoice Header against Contract Header should be in a separate .md table format. That for the Invoice Lines verified against the Contract lines in a separate .md table format.
     - If the Contract Data is not provided as an input when evaluating the Business rules, then desist from providing the verdict. State in the response that you could not provide the verdict since the Contract Data was not provided as an input. **DO NOT MAKE STUFF UP**.
     **Use chain of thought when processing the user requests**
+Step 5: Finally, you will use the function tool to call the computer using agent with the Invoice details to post the invoice header and line items data to the system.
+    - pass the purchase invoice header and line items data in text/ markdown format to the function tool as input.
+    - pass the status of approval or rejection of the purchase invoice to the function tool as input.
+    - pass any remarks or comments related to the purchase invoice rejection to the function tool as input.
+    - The function tool will then post the purchase invoice header and line items data to the system.
 """
 
 user_prompt = """
-here are the Purchase Invoice image(s) as input. Detect anomalies in the procure to pay process and give me a detailed report
+here are the Purchase Invoice image(s) as input. Detect anomalies in the procure to pay process and use that to post the invoice header and line items data to the system.
+    - The function tool will then post the purchase invoice header and line items data to the system.
+    - pass the purchase invoice header and line items data in text/ markdown format to the function tool as input.
+    - pass the status of approval or rejection of the purchase invoice to the function tool as input.
+    - pass any remarks or comments related to the purchase invoice rejection to the function tool as input.
+    - The function tool will then post the purchase invoice header and line items data to the system.
 """
 
 input_messages = [
@@ -103,89 +138,107 @@ if not config.model:
     config.model = os.getenv("MODEL_NAME2") or "gpt-4o"
 
 async def main():
-    # The following code is to call the Responses API with the input messages and tools
-    response = client.responses.create(
-        model=os.getenv("MODEL_NAME2"),
-        instructions=instructions,
-        input=input_messages,
-        tools=tools_list,
-        #tool_choice="auto",
-        parallel_tool_calls=False,
-    )
-    tool_call = response.output[0]
-    print(f"tool call: {response.output[0]}")
-
-    # We know this needs a function call, that needs to be executed from here in the application code.
-    # Lets get hold of the function name and arguments from the Responses API response.
-    function_response = None
-    function_to_call = None
-    function_name = None
+    # Create a copy of the input messages to maintain state across API calls
+    current_input_messages = input_messages.copy()
+    completed = False
+    step_tracker = 1  # Track which step of the process we're on
+    last_response_text = ""
     
+    try:
+        while not completed:
+            # Log the current step being processed
+            print(f"Processing step {step_tracker} of the Procure to Pay workflow...")
+            
+            # Call the Responses API with the current state
+            response = client.responses.create(
+                model=os.getenv("MODEL_NAME2"),
+                instructions=instructions,
+                input=current_input_messages,
+                tools=tools_list,
+                parallel_tool_calls=False,
+            )
+            
+            # If there's no tool call or all steps are completed, we're done
+            if not response.output or not any(output.type == "function_call" for output in response.output):
+                print("No tool calls in response. Workflow may be complete.")
+                last_response_text = response.output_text
+                completed = True
+                break
+                
+            # Process all tool calls in the response
+            for tool_call in response.output:
+                if tool_call.type == "function_call":
+                    function_name = tool_call.name
+                    print(f"Executing function: {function_name}")
+                    
+                    # Add function call to messages
+                    current_input_messages.append(tool_call)
+                    
+                    # Get the appropriate function to call
+                    function_to_call = available_functions.get(function_name)
+                    if not function_to_call:
+                        print(f"Error: Function {function_name} not found in available functions")
+                        raise ValueError(f"Function {function_name} not found")
+                    
+                    try:
+                        # Parse arguments and call the function
+                        function_args = json.loads(tool_call.arguments)
+                        
+                        # Execute the function (async or sync)
+                        if asyncio.iscoroutinefunction(function_to_call):
+                            function_response = await function_to_call(**function_args)
+                        else:
+                            function_response = function_to_call(**function_args)
+                        
+                        # Add function result to messages
+                        current_input_messages.append({
+                            "type": "function_call_output",
+                            "call_id": tool_call.call_id,
+                            "output": str(function_response)
+                        })
+                        
+                        print(f"Function {function_name} executed successfully")
+                        
+                        # Update step tracker based on the function called
+                        if function_name == "retrieve_contract":
+                            step_tracker = 3  # Moving to step 3 after contract retrieval
+                        elif function_name == "post_invoice":
+                            step_tracker = 5  # We're at the final step
+                            completed = True  # Mark as completed when post_invoice is called
+                    
+                    except Exception as func_error:
+                        error_message = f"Error executing function {function_name}: {str(func_error)}"
+                        print(error_message)
+                        
+                        # Add error message to the conversation
+                        current_input_messages.append({
+                            "type": "function_call_output",
+                            "call_id": tool_call.call_id,
+                            "output": f"ERROR: {error_message}"
+                        })
+                
+                elif tool_call.type == "file_search":
+                    # Handle file search tool calls
+                    print("File search tool was called to retrieve business rules")
+                    current_input_messages.append(tool_call)
+                    step_tracker = 4  # Move to step 4 after retrieving business rules
+            
+            # After each batch of tool calls, check if we've reached the final step
+            if step_tracker >= 5:
+                completed = True
     
-    if response.output[0].type == "function_call":
-        function_name = response.output[0].name
-        function_to_call = available_functions[function_name]
-        function_args = json.loads(response.output[0].arguments)
-        # Lets call the Logic app with the function arguments to get the contract details.
-        if asyncio.iscoroutinefunction(function_to_call):
-            function_response = await function_to_call(**function_args)
-        else:
-            function_response = function_to_call(**function_args)
-            
-    input_messages.append(tool_call)  # append model's function call message
-    input_messages.append({           # append result message
-        "type": "function_call_output",
-        "call_id": tool_call.call_id,
-        "output": str(function_response)
-    })
-
-    # Check if there's a function call in the response
-    # function_calls = []
-    # for output in response.output:
-    #     if hasattr(output, 'type') and output.type == 'function_call':
-    #         function_calls.append(output)
-    
-    # # Process function calls if any
-    # if function_calls:
-    #     for function_call in function_calls:
-    #         function_name = function_call.name
-    #         function_to_call = available_functions[function_name]
-    #         function_args = json.loads(function_call.arguments)
-            
-    #         # Lets call the Logic app with the function arguments to get the contract details.
-    #         if asyncio.iscoroutinefunction(function_to_call):
-    #             function_response = await function_to_call(**function_args)
-    #         else:
-    #             function_response = function_to_call(**function_args)
-            
-    #         # Add the model's text response to the messages (this already contains the function call details)
-    #         input_messages.append({
-    #             "role": "assistant",
-    #             "content": [{"type": "output_text", "text": response.output_text}]
-    #         })
-            
-    #         # Add the function call result as input_text
-    #         input_messages.append({
-    #             "role": "user",
-    #             "content": [{"type": "input_text", "text": f"Function {function_name} result: {str(function_response)}"}]
-    #         })
-    # else:
-    #     # If no function call, append the response message directly
-    #     input_messages.append({
-    #         "role": "assistant",
-    #         "content": [{"type": "output_text", "text": response.output_text}]
-    #     })
-
-    # This is the final call to the Responses API with the input messages and tools
-    response_2 = client.responses.create(
-        model=config.model,
-        instructions=instructions,
-        input=input_messages,
-        tools=tools_list,
-    )
-    print(response_2.output_text)
-    # print("Response from the model:")
-    # print(json.dumps(response_2, default=lambda o: o.__dict__, indent=4))
+    except Exception as e:
+        print(f"Error during processing: {str(e)}")
+        
+    # Print the final output or the last meaningful response
+    if completed and last_response_text:
+        print("\nFinal Output:")
+        print(last_response_text)
+    elif response and hasattr(response, 'output_text'):
+        print("\nLast Response:")
+        print(response.output_text)
+    else:
+        print("\nProcess did not complete successfully.")
 
 # Run the async main function
 if __name__ == "__main__":

@@ -187,93 +187,152 @@ async def retrieve_contract(contract_id:str) -> str:
         api_version=API_VERSION
     )
     
-    # Initialize Playwright
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(
-            headless=False,
-            args=[f"--window-size={DISPLAY_WIDTH},{DISPLAY_HEIGHT}", "--disable-extensions"]
-        )
-        
-        context = await browser.new_context(
-            viewport={"width": DISPLAY_WIDTH, "height": DISPLAY_HEIGHT},
-            accept_downloads=True
-        )
-        
-        page = await context.new_page()
-        
-        # Navigate to starting page
-        await page.goto(f"https://p2p-erp-web.gentleflower-4e1ad251.swedencentral.azurecontainerapps.io/ContractHeaders/ContractLines/{contract_id}", wait_until="domcontentloaded")
-        print("Browser initialized to Bing.com")
-        
-        # Main interaction loop
-        waiting_for_data = True
-        try:
-            while waiting_for_data:
-                print("\n" + "="*50)
-                # user_input = input("Enter a task to perform (or 'exit' to quit): ")
-                user_input = "Get the contract header data and contract lines data from the current page you are in and return that as a JSON object."
-                
-                if user_input.lower() in ('exit', 'quit'):
-                    break
-                
-                if not user_input.strip():
-                    continue
-                
-                # Take initial screenshot
-                screenshot_base64 = await take_screenshot(page)
-                print("\nTake initial screenshot")
-                
-                
-                l_instructions = """
-                You are an AI agent with the ability to control a browser. You can control the keyboard and mouse. You take a screenshot after each action to check if your action was successful.
-                Once you have completed the requested task you should stop running and pass back control to your human supervisor.
-                """
-                
-                # Initial request to the model
-                response = client.responses.create(
-                    model=MODEL,
-                    tools=[{
-                        "type": "computer_use_preview",
-                        "display_width": DISPLAY_WIDTH,
-                        "display_height": DISPLAY_HEIGHT,
-                        "environment": "browser"
-                    }],
-                    instructions = l_instructions,
-                    input=[{
-                        "role": "user",
-                        "content": [{
-                            "type": "input_text",
-                            "text": user_input
-                        }, {
-                            "type": "input_image",
-                            "image_url": f"data:image/png;base64,{screenshot_base64}"
-                        }]
-                    }],
-                    reasoning={"generate_summary": "concise"},
-                    truncation="auto"
-                )
-                print("\nSending model initial screenshot and instructions")
-
-                # Process model actions
-                response_string=await process_model_response(client, response, page)
-                print("CONTRACT DATA:", response_string)
-                if response_string is not None:
-                    print(f"Returning the contract details back to the caller \n{response_string}")
-                    waiting_for_data = False
-                    return response_string
-                
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            response_string = f"An error occurred: {e}"
-            import traceback
-            traceback.print_exc()
-        
-        finally:
-            # Close browser
-            await context.close()
-            await browser.close()
-            print("Browser closed.")
-        return response_string
+    # Validate contract_id
+    if not contract_id or not isinstance(contract_id, str):
+        error_msg = f"Invalid contract_id: {contract_id}. Must be a non-empty string."
+        print(error_msg)
+        return json.dumps({"error": error_msg, "status": "failed"})
     
-# if __name__ == "__main__":
-#     asyncio.run(main())
+    try:
+        print(f"Starting contract retrieval process for contract ID: {contract_id}")
+        
+        # Initialize Playwright
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(
+                headless=False,
+                args=[f"--window-size={DISPLAY_WIDTH},{DISPLAY_HEIGHT}", "--disable-extensions"]
+            )
+            
+            context = await browser.new_context(
+                viewport={"width": DISPLAY_WIDTH, "height": DISPLAY_HEIGHT},
+                accept_downloads=True
+            )
+            
+            page = await context.new_page()
+            
+            # Navigate to starting page with retry logic
+            try:
+                print(f"Navigating to contract page for ID: {contract_id}")
+                await page.goto(f"https://p2p-erp-web.gentleflower-4e1ad251.swedencentral.azurecontainerapps.io/ContractHeaders/ContractLines/{contract_id}", 
+                               wait_until="domcontentloaded",
+                               timeout=30000)  # Increased timeout to 30 seconds
+                
+                print("Successfully navigated to contract page")
+            except Exception as e:
+                error_msg = f"Failed to navigate to contract page: {str(e)}"
+                print(error_msg)
+                await context.close()
+                await browser.close()
+                return json.dumps({"error": error_msg, "status": "failed"})
+            
+            # Main interaction loop
+            waiting_for_data = True
+            retry_count = 0
+            max_retries = 3
+            
+            try:
+                while waiting_for_data and retry_count < max_retries:
+                    print("\n" + "="*50)
+                    user_input = "Get the contract header data and contract lines data from the current page you are in and return that as a JSON object."
+                    
+                    # Take initial screenshot
+                    try:
+                        screenshot_base64 = await take_screenshot(page)
+                        print("Successfully captured initial screenshot")
+                    except Exception as e:
+                        error_msg = f"Failed to capture screenshot: {str(e)}"
+                        print(error_msg)
+                        retry_count += 1
+                        continue
+                    
+                    l_instructions = """
+                    You are an AI agent with the ability to control a browser. You can control the keyboard and mouse. You take a screenshot after each action to check if your action was successful.
+                    Once you have completed the requested task you should stop running and pass back control to your human supervisor.
+                    """
+                    
+                    # Initial request to the model
+                    try:
+                        response = client.responses.create(
+                            model=MODEL,
+                            tools=[{
+                                "type": "computer_use_preview",
+                                "display_width": DISPLAY_WIDTH,
+                                "display_height": DISPLAY_HEIGHT,
+                                "environment": "browser"
+                            }],
+                            instructions = l_instructions,
+                            input=[{
+                                "role": "user",
+                                "content": [{
+                                    "type": "input_text",
+                                    "text": user_input
+                                }, {
+                                    "type": "input_image",
+                                    "image_url": f"data:image/png;base64,{screenshot_base64}"
+                                }]
+                            }],
+                            reasoning={"generate_summary": "concise"},
+                            truncation="auto"
+                        )
+                        print("Successfully sent model initial screenshot and instructions")
+                    except Exception as e:
+                        error_msg = f"Failed to create model response: {str(e)}"
+                        print(error_msg)
+                        retry_count += 1
+                        continue
+
+                    # Process model actions
+                    try:
+                        response_string = await process_model_response(client, response, page)
+                        print(f"CONTRACT DATA: {response_string[:200]}...") # Print first 200 chars to avoid console clutter
+                        
+                        if response_string is not None:
+                            # Try to validate JSON if it's supposed to be JSON
+                            if response_string.strip().startswith("{"):
+                                try:
+                                    json.loads(response_string)
+                                    print("Successfully validated JSON response")
+                                except json.JSONDecodeError:
+                                    print("Warning: Response looks like JSON but is not valid. Returning as string.")
+                            
+                            print("Successfully retrieved contract details")
+                            waiting_for_data = False
+                            return response_string
+                        else:
+                            print("No response received from model, retrying...")
+                            retry_count += 1
+                    except Exception as e:
+                        error_msg = f"Error processing model response: {str(e)}"
+                        print(error_msg)
+                        retry_count += 1
+                
+                if retry_count >= max_retries:
+                    error_msg = f"Failed to retrieve contract data after {max_retries} attempts"
+                    print(error_msg)
+                    return json.dumps({"error": error_msg, "status": "failed"})
+                    
+            except Exception as e:
+                error_msg = f"An error occurred during contract retrieval: {str(e)}"
+                print(error_msg)
+                import traceback
+                traceback.print_exc()
+                return json.dumps({"error": error_msg, "status": "failed"})
+            
+            finally:
+                # Close browser
+                try:
+                    await context.close()
+                    await browser.close()
+                    print("Browser closed.")
+                except Exception as e:
+                    print(f"Error closing browser: {str(e)}")
+    
+    except Exception as e:
+        error_msg = f"Failed to initialize contract retrieval process: {str(e)}"
+        print(error_msg)
+        import traceback
+        traceback.print_exc()
+        return json.dumps({"error": error_msg, "status": "failed"})
+    
+    # Default return if we somehow get here
+    return json.dumps({"error": "Unknown error occurred", "status": "failed"})
