@@ -1,0 +1,6 @@
+python call_computer_use.py --url https://p2p-erp-web.gentleflower-4e1ad251.swedencentral.azurecontainerapps.io/PurchaseInvoiceHeaders/Create --instructions \"fill the form with purchase_invoice_no 'PInv_001', contract_reference 'contract997801', supplier_id 'supplier99010', total_invoice_value 23100.00, invoice_date '12/12/2024', status 'approved', remarks 'invoice is valid and approved'. Save by clicking on the 'save' button.\" --exit_after_completion
+
+
+
+
+python call_computer_use.py --url https://p2p-erp-web.gentleflower-4e1ad251.swedencentral.azurecontainerapps.io/ContractHeaders/ContractLines/CON000001 --instructions \"get the details of the Contract Header along with the contract lines on the page as a JSON output\"

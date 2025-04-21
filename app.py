@@ -1,13 +1,14 @@
 import config
 
 from openai import AzureOpenAI
-from contract_tools import retrieve_contract
-from invoice_tools import post_invoice
+# from contract_tools import retrieve_contract
+# from invoice_tools import post_purchase_invoice
 import base64
 import json
 import os
 import asyncio
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from call_computer_use import post_purchase_invoice_header, retrieve_contract
 
 AZURE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 MODEL = os.getenv("MODEL_NAME2")
@@ -28,7 +29,7 @@ client = AzureOpenAI(
 
 available_functions = {
     "retrieve_contract": retrieve_contract,
-    "post_invoice": post_invoice,
+    "post_purchase_invoice_header": post_purchase_invoice_header,
 }
 
 # read the Purchase Invoice image(s) to be sent as input to the model
@@ -50,40 +51,36 @@ tools_list =  [
         },
         {
             "type": "function",
-            "name": "post_invoice",
-            "description": "post the purchase invoice header and line items data to the system",
+            "name": "post_purchase_invoice_header",
+            "description": "post the purchase invoice header data to the system",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "purchase_invoice": {
+                    "instructions": {
                         "type": "string",
-                        "description": "the purchase invoice header and line items data in text/ markdown format",
+                        "description": "The instructions to populate and post form data in the purchase invoice header form in the web page",
                     },
-                    "status": {
-                        "type": "string",
-                        "description": "the status of approval or rejection of the purchase invoice",
-                    },
-                    "remarks": {
-                        "type": "string",
-                        "description": "any remarks or comments related to the purchase invoice rejection",
-                    }
                 },
-                "required": ["purchase_invoice","status","remarks"],
+                "required": ["instructions"],
             },
         },
                 {
             "type": "function",
             "name": "retrieve_contract",
-            "description": "fetch contract details for the given contract_id",
+            "description": "fetch contract details for the given contractid",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "contract_id": {
+                    "contractid": {
                         "type": "string",
                         "description": "The contract id registered for the Supplier in the System",
-                    }
+                    },
+                     "instructions": {
+                        "type": "string",
+                        "description": "The instructions to populate and post form data in the purchase invoice header form in the web page",
+                    },
                 },
-                "required": ["contract_id"],
+                "required": ["contractid","instructions"],
             },
         },
     ]
@@ -100,11 +97,8 @@ Step 4: Then, apply the retrieved business rules to match the invoice line items
     - When providing the verdict, depict the results in the form of a Markdown table, matching details from the Invoice and Contract side-by-side. Verification of Invoice Header against Contract Header should be in a separate .md table format. That for the Invoice Lines verified against the Contract lines in a separate .md table format.
     - If the Contract Data is not provided as an input when evaluating the Business rules, then desist from providing the verdict. State in the response that you could not provide the verdict since the Contract Data was not provided as an input. **DO NOT MAKE STUFF UP**.
     **Use chain of thought when processing the user requests**
-Step 5: Finally, you will use the function tool to call the computer using agent with the Invoice details to post the invoice header and line items data to the system.
-    - pass the purchase invoice header and line items data in text/ markdown format to the function tool as input.
-    - pass the status of approval or rejection of the purchase invoice to the function tool as input.
-    - pass any remarks or comments related to the purchase invoice rejection to the function tool as input.
-    - The function tool will then post the purchase invoice header and line items data to the system.
+Step 5: Finally, you will use the function tool to call the computer using agent with the Invoice details to post the invoice header data to the system.
+    - The instructions you must pass are: Fill the form with purchase_invoice_no '$PurchaseInvoiceNumber', contract_reference '$contract_reference', supplier_id '$supplierid', total_invoice_value $total_invoice_value (in 2335.00 format), invoice_date '$invoice_data' (string in mm/dd/yyyy format), status '$status', remarks '$status'. Save this information by clicking on the 'save' button. If the response message shows a dialog box or a message box, acknowledge it. \n An example of the user_input format you must send is -- 'Fill the form with purchase_invoice_no 'PInv_001', contract_reference 'contract997801', supplier_id 'supplier99010', total_invoice_value 23100.00, invoice_date '12/12/2024', status 'approved', remarks 'invoice is valid and approved'. Save this information by clicking on the 'save' button. If the response message shows a dialog box or a message box, acknowledge it'
 """
 
 user_prompt = """
@@ -202,7 +196,7 @@ async def main():
                         # Update step tracker based on the function called
                         if function_name == "retrieve_contract":
                             step_tracker = 3  # Moving to step 3 after contract retrieval
-                        elif function_name == "post_invoice":
+                        elif function_name == "post_purchase_invoice_header":
                             step_tracker = 5  # We're at the final step
                             completed = True  # Mark as completed when post_invoice is called
                     
