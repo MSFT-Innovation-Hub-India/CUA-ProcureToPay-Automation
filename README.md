@@ -22,8 +22,7 @@ This application leverages Azure OpenAI's Computer Using Agent (CUA) and Respons
 - Python 3.9+ installed
 - Azure subscription with:
   - Azure OpenAI Service
-  - Azure Cognitive Search (for vector search)
-  - Azure SQL Database (for contract information)
+  - Azure SQL Database (for contract data and purchase invoice capture)
 
 ## Getting Started
 
