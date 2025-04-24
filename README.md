@@ -1,5 +1,27 @@
 # Procure-to-Pay Automation with Azure OpenAI Computer Using Agent
 
+## Foreword
+
+In today's fast-paced business environment, procurement teams face numerous challenges including managing contracts, processing invoices, and ensuring compliance with business rules. This project showcases how we can leverage Azure OpenAI's Computer Using Agent capabilities to transform procurement processes through an innovative agentic solution.
+
+### The Challenge
+
+Procurement processes often involve:
+- Manual data entry across multiple systems
+- Time-consuming contract and invoice reviews
+- Risk of human error in data extraction and entry
+- Complex compliance requirements
+
+### Agentic Approach to Procurement
+
+Our solution harnesses Azure OpenAI's Computer Using Agent (CUA) technology and Responses API to create an AI assistant that can interact with procurement systems just like a human would - navigating web interfaces, extracting data from documents, and making informed decisions based on business rules.
+
+This project specifically addresses scenarios where enterprises have legacy systems for which APIs are not available, and there are only web applications that let users perform their business functions. By using CUA, we can automate these processes without requiring API development or system modifications.
+
+> **Note:** In the [TechCommunity blog](https://techcommunity.microsoft.com/blog/azure-ai-services-blog/agentic-p2p-automation-harnessing-the-power-of-openais-responses-api/4396741), I demonstrated how the same procure-to-pay automation can be accomplished using Azure OpenAI Responses API calling an API to retrieve contract information. This project takes that concept further by eliminating the need for APIs altogether.
+
+---
+
 A state-of-the-art solution that transforms procurement processes through Azure OpenAI's Computer Using Agent (CUA) capabilities, enabling automated invoice processing, anomaly detection, and compliance verification.
 
 ![Architecture](images/architecture.png)
