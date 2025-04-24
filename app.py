@@ -233,5 +233,6 @@ async def main():
 
 
 # Run the async main function
+# To run the script, use the command: python app.py --image data_files/Invoice-002.png
 if __name__ == "__main__":
     asyncio.run(main())
