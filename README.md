@@ -149,4 +149,8 @@ Refer to the linkedin article [here](https://www.linkedin.com/pulse/beyond-autom
 
 Watch this video demonstration to see the application in action:
 
-[![Procure-to-Pay Automation with Azure OpenAI CUA](https://img.youtube.com/vi/ZmjL-eTbago/0.jpg)](https://www.youtube.com/watch?v=ZmjL-eTbago)
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=ZmjL-eTbago">
+    <img src="https://img.youtube.com/vi/ZmjL-eTbago/maxresdefault.jpg" alt="Procure-to-Pay Automation with Azure OpenAI CUA" width="700">
+  </a>
+</div>
