@@ -91,6 +91,13 @@ Sample invoices are provided in the repository:
 
 **Note** In the next version of the Application, a Streamlit Web Application would be provided, allowing users to pick Invoice files from the file system.
 
+### Create a Vector Database 
+
+This is required to store the business rules for anomaly detection. Use vector-store.py to create a vector store in Azure OpenAI and to add the sample business rules in the file [here](data_files/p2p-rules.txt)
+
+While this is the only file used in the solution, using a vector store here is to convey that it could be used to store unstructured data for a variety of purposes, apart from the business rules for anomaly detection in purchase invoices. 
+Once done, Enter the ID of the vector store in the .env file
+
 ### Run the Application
 
 ```bash
