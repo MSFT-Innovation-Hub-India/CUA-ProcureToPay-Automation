@@ -1,30 +1,31 @@
-import config
-
 from openai import AzureOpenAI
-# from contract_tools import retrieve_contract
-# from invoice_tools import post_purchase_invoice
 import base64
 import json
 import os
 import asyncio
+import argparse
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from call_computer_use import post_purchase_invoice_header, retrieve_contract
 
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Process purchase invoice image.')
+parser.add_argument('--image', type=str, default="data_files/Invoice-002.png", 
+                    help='Path to the purchase invoice image file')
+args = parser.parse_args()
+
 AZURE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 MODEL = os.getenv("MODEL_NAME2")
-API_VERSION = "2025-03-01-preview"
-vector_store_id_to_use=config.az_vector_store_id
+API_VERSION = os.getenv("AZURE_API_VERSION")
+vector_store_id_to_use = os.getenv("vector_store_id")
 
 token_provider = get_bearer_token_provider(
     DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
 )
 
-
-# client = OpenAI(api_key=config.api_key)
 client = AzureOpenAI(
     azure_endpoint=AZURE_ENDPOINT,
     azure_ad_token_provider=token_provider,
-    api_version=API_VERSION
+    api_version=API_VERSION,
 )
 
 available_functions = {
@@ -32,15 +33,16 @@ available_functions = {
     "post_purchase_invoice_header": post_purchase_invoice_header,
 }
 
-# read the Purchase Invoice image(s) to be sent as input to the model
-image_paths = ["data_files/Invoice-001.png"]
+# Use the image path from command line argument
+image_path = args.image
+print(f"Processing invoice image: {image_path}")
 
 def encode_image_to_base64(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
 
-# Encode images
-base64_images = [encode_image_to_base64(image_path) for image_path in image_paths]
+# Encode single image
+base64_image = encode_image_to_base64(image_path)
 
 # These are the tools that will be used by the Responses API.
 tools_list =  [
@@ -85,7 +87,7 @@ tools_list =  [
         },
     ]
 
-instructions="""
+instructions = """
 This is a Procure to Pay process. You will be provided with the Purchase Invoice image as input.
 Note that Step 3 can be performed only after Step 1 and Step 2 are completed.
 Step 1: As a first step, you will extract the Contract ID from the Purchase Invoice image along with the line items from the Invoice in the form of a table.
@@ -117,21 +119,15 @@ input_messages = [
         "role": "user",
         "content": [
             {"type": "input_text", "text": user_prompt},
-            *[
-                {
-                    "type": "input_image",
-                    "image_url": f"data:image/jpeg;base64,{base64_image}",
-                    "detail": "high",
-                }
-                for base64_image in base64_images
-            ],
+            {
+                "type": "input_image",
+                "image_url": f"data:image/jpeg;base64,{base64_image}",
+                "detail": "high",
+            }
         ],
     }
 ]
 
-# Ensure `config.model` is set to a valid model name
-if not config.model:
-    config.model = os.getenv("MODEL_NAME2") or "gpt-4o"
 
 async def main():
     # Create a copy of the input messages to maintain state across API calls
@@ -235,6 +231,8 @@ async def main():
     else:
         print("\nProcess did not complete successfully.")
 
+
 # Run the async main function
+# To run the script, use the command: python app.py --image data_files/Invoice-002.png
 if __name__ == "__main__":
     asyncio.run(main())
