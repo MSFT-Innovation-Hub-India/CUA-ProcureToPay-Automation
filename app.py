@@ -90,28 +90,23 @@ tools_list =  [
 instructions = """
 This is a Procure to Pay process. You will be provided with the Purchase Invoice image as input.
 Note that Step 3 can be performed only after Step 1 and Step 2 are completed.
-Step 1: As a first step, you will extract the Contract ID from the Purchase Invoice image along with the line items from the Invoice in the form of a table.
-Step 2: You will then use the function tool by passing the Contract ID above to retrieve the contract details.
-Step 3: You will then use the file search tool to retrieve the business rules applicable to detection of anomalies in the Procure to Pay process.
-Step 4: Then, apply the retrieved business rules to match the invoice line items with the contract details fetched from in step 2, and detect anomalies if any.
+Step 1: As a first step, you will use visual reasoning to read the Contract ID from the Purchase Invoice image along with the line items from the Invoice in the form of a table.
+Step 2: Next, use the function tool by passing the Contract ID above to retrieve the contract details.
+Step 3: Next, use the file search tool to retrieve the business rules applicable to detection of anomalies in the Procure to Pay process.
+Step 4: Next, apply the retrieved business rules to match the invoice line items with the contract details fetched from in step 2, and detect anomalies if any.
     - Perform validation of the Invoice against the Contract and determine if there are any anomalies detected.
     - **When giving the verdict, you must call out each Invoice and Invoice line detail where the discrepancy was. Use your knowledge of the domain to interpret the information right and give a response that the user can store as evidence**
     - Note that it is ok for the quantities in the invoice to be lesser than the quantities in the contract, but not the other way around.
     - When providing the verdict, depict the results in the form of a Markdown table, matching details from the Invoice and Contract side-by-side. Verification of Invoice Header against Contract Header should be in a separate .md table format. That for the Invoice Lines verified against the Contract lines in a separate .md table format.
     - If the Contract Data is not provided as an input when evaluating the Business rules, then desist from providing the verdict. State in the response that you could not provide the verdict since the Contract Data was not provided as an input. **DO NOT MAKE STUFF UP**.
     **Use chain of thought when processing the user requests**
-Step 5: Finally, you will use the function tool to call the computer using agent with the Invoice details to post the invoice header data to the system.
+Step 5: Finally, you will use the function tool to post the purchase invoice into the system by passing the Invoice details.
     - use the content from step 4 above, under ### Final Verdict, for the value of the $remarks field, after replacing the new line characters with a space.
     - The instructions you must pass are: Fill the form with purchase_invoice_no '$PurchaseInvoiceNumber', contract_reference '$contract_reference', supplier_id '$supplierid', total_invoice_value $total_invoice_value (in 2335.00 format), invoice_date '$invoice_data' (string in mm/dd/yyyy format), status '$status', remarks '$remarks'. Save this information by clicking on the 'save' button. If the response message shows a dialog box or a message box, acknowledge it. \n An example of the user_input format you must send is -- 'Fill the form with purchase_invoice_no 'PInv_001', contract_reference 'contract997801', supplier_id 'supplier99010', total_invoice_value 23100.00, invoice_date '12/12/2024', status 'approved', remarks 'invoice is valid and approved'. Save this information by clicking on the 'save' button. If the response message shows a dialog box or a message box, acknowledge it'
 """
 
 user_prompt = """
 here are the Purchase Invoice image(s) as input. Detect anomalies in the procure to pay process and use that to post the invoice header and line items data to the system.
-    - The function tool will then post the purchase invoice header and line items data to the system.
-    - pass the purchase invoice header and line items data in text/ markdown format to the function tool as input.
-    - pass the status of approval or rejection of the purchase invoice to the function tool as input.
-    - pass any remarks or comments related to the purchase invoice rejection to the function tool as input.
-    - The function tool will then post the purchase invoice header and line items data to the system.
 """
 
 input_messages = [
