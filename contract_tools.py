@@ -251,6 +251,7 @@ async def retrieve_contract(contract_id:str) -> str:
     :return: retrieved contract details.
     :rtype: Any
     """
+    print(f"Retrieving contract details for contract ID: {contract_id}")
     response_string = None
     # Initialize OpenAI client
     client = AzureOpenAI(

@@ -77,7 +77,7 @@ tools_list =  [
                     },
                      "instructions": {
                         "type": "string",
-                        "description": "The instructions to populate and post form data in the purchase invoice header form in the web page",
+                        "description": "The instructions to retrieve the contract details from the web page",
                     },
                 },
                 "required": ["contractid","instructions"],
@@ -88,8 +88,8 @@ tools_list =  [
 instructions="""
 This is a Procure to Pay process. You will be provided with the Purchase Invoice image as input.
 Note that Step 3 can be performed only after Step 1 and Step 2 are completed.
-Step 1: As a first step, you will extract the Contract ID from the Invoice and also all the line items from the Invoice in the form of a table.
-Step 2: You will then use the function tool to call the computer using agent with the Contract ID to get the contract details.
+Step 1: As a first step, you will extract the Contract ID from the Purchase Invoice image along with the line items from the Invoice in the form of a table.
+Step 2: You will then use the function tool by passing the Contract ID above to retrieve the contract details.
 Step 3: You will then use the file search tool to retrieve the business rules applicable to detection of anomalies in the Procure to Pay process.
 Step 4: Then, apply the retrieved business rules to match the invoice line items with the contract details fetched from in step 2, and detect anomalies if any.
     - Perform validation of the Invoice against the Contract and determine if there are any anomalies detected.
