@@ -1,3 +1,10 @@
+# NOTE:
+# This file uses dense instructions when calling the Responses API in Azure OpenAI.
+# It works sometimes, but at other times, it throws a 500 Internal Server Error from OpenAI.
+# Since the API is in preview as of this writing, a variant of this file (see app_stepwise.py)
+# has been implemented, where instead of passing all 5 steps as dense instructions to the LLM,
+# the steps are performed sequentially via multiple Responses API calls.
+
 from openai import AzureOpenAI
 import base64
 import json

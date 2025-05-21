@@ -2,6 +2,10 @@
 Note: The Streamlit code is not fully functional yet. To run the application use app.py directly instead
 Streamlit app for Purchase Invoice Anomaly Detection using Azure OpenAI and Playwright.
 
+# NOTE:
+# This Streamlit app now uses the stepwise workflow implemented in app_stepwise.py for robust, reliable processing.
+# The stepwise approach avoids 500 Internal Server Errors from dense LLM instructions in the preview Azure OpenAI Responses API.
+
 """
 
 import sys
@@ -27,6 +31,7 @@ nest_asyncio.apply()
 from openai import AzureOpenAI
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 from call_computer_use import post_purchase_invoice_header, retrieve_contract
+import app_stepwise
 
 # Set page configuration
 st.set_page_config(
@@ -275,73 +280,36 @@ async def process_invoice(user_prompt, image_bytes, status_area, response_area):
         return "Process did not complete successfully."
 
 # Streamlit UI
-st.title("Purchase Invoice Anomaly Detection")
+st.title("Purchase Invoice Anomaly Detection (Stepwise)")
 
-# Create a two-column layout
-col1, col2 = st.columns([3, 2])
+uploaded_file = st.file_uploader("Upload a Purchase Invoice Image", type=["png", "jpg", "jpeg"])
 
-with col1:
-    st.markdown("""
-    This application processes purchase invoices to detect anomalies in the procure-to-pay process.
-    Upload an invoice image and provide instructions to begin the analysis.
-    """)
-    
-    # Form for user input
-    with st.form("invoice_form"):
-        # Text input for user instructions
-        user_prompt = st.text_area(
-            "Instructions", 
-            value="""Detect anomalies in the procure to pay process and use that to post the invoice header and line items data to the system.""",
-            height=100
-        )
-        
-        # File uploader for invoice image with expanded format support
-        uploaded_file = st.file_uploader(
-            "Upload Purchase Invoice Image", 
-            type=["png", "jpg", "jpeg", "tiff", "tif", "bmp", "webp"],
-            help="Supported formats: PNG, JPG, JPEG, TIFF, BMP, WebP"
-        )
-        
-        # Submit button
-        submit_button = st.form_submit_button("Process Invoice")
+if uploaded_file is not None:
+    with open("data_files/streamlit_uploaded_invoice.png", "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    st.image("data_files/streamlit_uploaded_invoice.png", caption="Uploaded Invoice", use_column_width=True)
 
-with col2:
-    # Image preview and progress area
-    st.markdown("### Image Preview")
-    preview_container = st.empty()
-    
-    if uploaded_file is not None:
-        try:
-            # Show uploaded image preview
-            image_bytes = uploaded_file.getvalue()
-            preview_container.image(image_bytes, caption="Uploaded Invoice", use_container_width=True)
-        except Exception as e:
-            st.error(f"Could not preview the image: {str(e)}")
-
-# Status and response containers
-status_container = st.container()
-response_container = st.container()
-
-# Process the invoice when the form is submitted
-if submit_button:
-    if uploaded_file is not None:
-        # Get the image bytes
-        image_bytes = uploaded_file.getvalue()
-        
-        # Check file size
-        file_size_mb = len(image_bytes) / (1024 * 1024)
-        if file_size_mb > 20:  # 20MB limit
-            st.error("File size exceeds 20MB limit. Please upload a smaller file.")
-        else:
-            # Create areas for status updates and response
-            with status_container:
-                status_area = st.empty()
-                status_area.info("Starting invoice processing...")
-            
-            with response_container:
-                response_area = st.empty()
-                
-                # Process the invoice using the Playwright functions
-                result = run_async(process_invoice(user_prompt, image_bytes, status_area, response_area))
-    else:
-        st.error("Please upload an invoice image to continue.")
+    if st.button("Process Invoice (Stepwise)"):
+        with st.spinner("Processing invoice..."):
+            # Run the stepwise workflow using the uploaded image
+            result = asyncio.run(app_stepwise.main(image_path="data_files/streamlit_uploaded_invoice.png", streamlit_mode=True))
+            st.success("Processing complete!")
+            # Display each step's output in a user-friendly way
+            st.subheader("Step 1: Invoice Extraction")
+            st.json(result.get('invoice_data'))
+            st.subheader("Step 2: Contract Details")
+            st.json(result.get('contract_data'))
+            st.subheader("Step 3: Business Rules")
+            st.code(result.get('business_rules'), language='markdown')
+            st.subheader("Step 4: Anomaly Detection Verdict")
+            verdict = result.get('verdict')
+            if isinstance(verdict, dict):
+                st.write(f"**Status:** {verdict.get('status')}")
+                st.markdown(verdict.get('detailed_verdict', ''))
+                st.write(f"**Summary:** {verdict.get('summary_verdict', '')}")
+            else:
+                st.json(verdict)
+            st.subheader("Step 5: Post Invoice Result")
+            st.write(result.get('post_result'))
+else:
+    st.info("Please upload a purchase invoice image to begin.")
