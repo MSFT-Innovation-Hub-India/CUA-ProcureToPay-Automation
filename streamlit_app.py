@@ -1,5 +1,4 @@
 """
-Note: The Streamlit code is not fully functional yet. To run the application use app.py directly instead
 Streamlit app for Purchase Invoice Anomaly Detection using Azure OpenAI and Playwright.
 
 # NOTE:
