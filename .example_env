@@ -1,6 +1,6 @@
 AZURE_OPENAI_ENDPOINT="https://<youraoiaendpoint>.openai.azure.com/"
 AZURE_API_VERSION="2025-03-01-preview"
-CUA_MODEL_NAME="computer-use-preview"
+MODEL_NAME="computer-use-preview"
 MODEL_NAME2="gpt-4o"
 vector_store_id="vs_<yourvectorstoreid>"
 
