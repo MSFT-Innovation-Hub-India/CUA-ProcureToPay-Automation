@@ -216,6 +216,7 @@ async def main(image_path=None, streamlit_mode=False):
     # Step 1: Extract invoice data
     try:
         invoice_data = await extract_invoice_data(image_path)
+        print("Extracted invoice data:\n", json.dumps(invoice_data, indent=2))
     except Exception as e:
         invoice_data = {"error": f"Invoice extraction failed: {str(e)}"}
     results['invoice_data'] = invoice_data
@@ -231,6 +232,7 @@ async def main(image_path=None, streamlit_mode=False):
     # Step 3: Retrieve business rules
     try:
         business_rules = await get_business_rules()
+        print("Business rules retrieved:\n", business_rules)
     except Exception as e:
         business_rules = f"Business rules retrieval failed: {str(e)}"
     results['business_rules'] = business_rules
