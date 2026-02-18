@@ -214,41 +214,68 @@ async def main(image_path=None, streamlit_mode=False):
         image_path = "data_files/Invoice-001.png"
     results = {}
     # Step 1: Extract invoice data
+    print("=" * 60)
+    print("STEP 1: Extracting invoice data from image...")
+    print("=" * 60)
     try:
         invoice_data = await extract_invoice_data(image_path)
         print("Extracted invoice data:\n", json.dumps(invoice_data, indent=2))
     except Exception as e:
         invoice_data = {"error": f"Invoice extraction failed: {str(e)}"}
+        print(f"ERROR in Step 1: {e}")
     results['invoice_data'] = invoice_data
 
     # Step 2: Retrieve contract details
+    print("=" * 60)
+    print("STEP 2: Retrieving contract details...")
+    print("=" * 60)
     contractid = invoice_data.get("contractId") if isinstance(invoice_data, dict) else None
+    if not contractid:
+        print(f"WARNING: No contractId found in invoice data. Invoice data keys: {list(invoice_data.keys()) if isinstance(invoice_data, dict) else 'N/A'}")
+        print(f"Invoice data: {json.dumps(invoice_data, indent=2) if isinstance(invoice_data, dict) else invoice_data}")
+    else:
+        print(f"Contract ID extracted: {contractid}")
     try:
         contract_data = await get_contract_details(contractid) if contractid else {"error": "No contractId found in invoice data."}
+        print(f"Contract data retrieved: {json.dumps(contract_data, indent=2) if isinstance(contract_data, dict) else contract_data}")
     except Exception as e:
         contract_data = {"error": f"Contract retrieval failed: {str(e)}"}
+        print(f"ERROR in Step 2: {e}")
     results['contract_data'] = contract_data
 
     # Step 3: Retrieve business rules
+    print("=" * 60)
+    print("STEP 3: Retrieving business rules...")
+    print("=" * 60)
     try:
         business_rules = await get_business_rules()
         print("Business rules retrieved:\n", business_rules)
     except Exception as e:
         business_rules = f"Business rules retrieval failed: {str(e)}"
+        print(f"ERROR in Step 3: {e}")
     results['business_rules'] = business_rules
 
     # Step 4: Detect anomalies
+    print("=" * 60)
+    print("STEP 4: Detecting anomalies...")
+    print("=" * 60)
     try:
         verdict = await detect_anomalies(invoice_data, contract_data, business_rules)
+        print(f"Verdict: {json.dumps(verdict, indent=2) if isinstance(verdict, dict) else verdict}")
     except Exception as e:
         verdict = {"error": f"Anomaly detection failed: {str(e)}"}
+        print(f"ERROR in Step 4: {e}")
     results['verdict'] = verdict
 
     # Step 5: Post invoice
+    print("=" * 60)
+    print("STEP 5: Posting purchase invoice...")
+    print("=" * 60)
     try:
         post_result = await post_invoice(invoice_data, verdict)
     except Exception as e:
         post_result = f"Post invoice failed: {str(e)}"
+        print(f"ERROR in Step 5: {e}")
     results['post_result'] = post_result
 
     if streamlit_mode:

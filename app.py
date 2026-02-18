@@ -151,12 +151,25 @@ async def main():
                 tools=tools_list,
                 parallel_tool_calls=False,
             )
-            # If there's no tool call or all steps are completed, we're done
+            # If there's no tool call, check if we still have steps to complete
             if not response.output or not any(output.type == "function_call" for output in response.output):
-                print("No tool calls in response. Workflow may be complete.")
-                last_response_text = response.output_text
-                completed = True
-                break
+                if step_tracker < 5:
+                    # We haven't posted the invoice yet — add model output and prompt it to continue
+                    print(f"No tool calls in response at step {step_tracker}. Prompting model to continue...")
+                    last_response_text = response.output_text
+                    current_input_messages += response.output
+                    current_input_messages.append({
+                        "role": "user",
+                        "content": "Now proceed with Step 5: post the purchase invoice into the system using the function tool. "
+                                   "Use the anomaly detection verdict above to set the status to 'approved' or 'rejected' accordingly, "
+                                   "and include the verdict summary in the remarks field."
+                    })
+                    continue
+                else:
+                    print("No tool calls in response. Workflow complete.")
+                    last_response_text = response.output_text
+                    completed = True
+                    break
                 
             # Process all tool calls in the response
             for tool_call in response.output:
