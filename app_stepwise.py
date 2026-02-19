@@ -163,14 +163,27 @@ If contract data is missing, set status to 'rejected' and explain in summary_ver
     for output in response.output:
         if hasattr(output, "content") and output.content:
             text = output.content[0].text
+            # Try to parse JSON from the response
             try:
                 json_start = text.find("{")
                 json_end = text.rfind("}")
                 if json_start >= 0 and json_end > json_start:
-                    return json.loads(text[json_start : json_end + 1])
+                    parsed = json.loads(text[json_start : json_end + 1])
+                    if isinstance(parsed, dict) and "status" in parsed:
+                        return parsed
             except Exception:
-                return text
-    return None
+                pass
+            # Model returned non-JSON text; wrap it in a dict using the status field
+            return {
+                "status": "rejected",
+                "detailed_verdict": text,
+                "summary_verdict": text,
+            }
+    return {
+        "status": "rejected",
+        "detailed_verdict": "",
+        "summary_verdict": "Anomaly detection returned no output.",
+    }
 
 
 async def post_invoice(invoice_data, verdict):
@@ -182,7 +195,9 @@ async def post_invoice(invoice_data, verdict):
     supplier_id = invoice_data.get("supplierId", "UNKNOWN")
     total_invoice_value = invoice_data.get("totalInvoiceValue", "0.00")
     invoice_date = invoice_data.get("invoiceDate", "UNKNOWN")
-    # verdict is expected to be a dict with keys: status, detailed_verdict, summary_verdict
+    # Ensure verdict is a dict with the expected keys
+    if not isinstance(verdict, dict):
+        verdict = {"status": "rejected", "detailed_verdict": str(verdict), "summary_verdict": str(verdict)}
     status = verdict.get("status", "rejected")
     remarks = verdict.get("summary_verdict", "No summary provided").replace("\n", " ")
 
@@ -290,7 +305,7 @@ async def main(image_path=None, streamlit_mode=False):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Process purchase invoice image (stepwise).')
-    parser.add_argument('--image', type=str, default="data_files/Invoice-001.png", help='Path to the purchase invoice image file')
+    parser.add_argument('--image', type=str, default="data_files/Invoice-002.png", help='Path to the purchase invoice image file')
     parser.add_argument('--streamlit_mode', action='store_true', help='Return results as dict for Streamlit UI')
     args = parser.parse_args()
     asyncio.run(main(image_path=args.image, streamlit_mode=args.streamlit_mode))
