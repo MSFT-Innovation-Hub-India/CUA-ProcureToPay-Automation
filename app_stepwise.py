@@ -1,9 +1,5 @@
-# NOTE:
-# This file implements the stepwise variant of the procure-to-pay workflow.
-# Instead of passing all 5 steps as dense instructions to the LLM in a single Responses API call (see app.py),
-# each step is performed sequentially via multiple Responses API calls.
-# This approach avoids the 500 Internal Server Error sometimes encountered with dense instructions
-# in the preview version of the Azure OpenAI Responses API.
+# Procure-to-Pay Automation - Stepwise Workflow
+# Each step is performed sequentially via multiple Responses API calls.
 
 import os
 import json
@@ -215,15 +211,11 @@ async def post_invoice(invoice_data, verdict):
     return result
 
 
-async def main(image_path=None, streamlit_mode=False):
+async def main(image_path=None):
     """
     Stepwise workflow for procure-to-pay automation.
     Args:
         image_path (str): Path to the invoice image file.
-        streamlit_mode (bool): If True, returns a dict of all step results for Streamlit UI.
-    Returns:
-        If streamlit_mode: dict with keys 'invoice_data', 'contract_data', 'business_rules', 'verdict', 'post_result'.
-        Else: None (prints to stdout).
     """
     if image_path is None:
         image_path = "data_files/Invoice-001.png"
@@ -293,19 +285,13 @@ async def main(image_path=None, streamlit_mode=False):
         print(f"ERROR in Step 5: {e}")
     results['post_result'] = post_result
 
-    if streamlit_mode:
-        return results
-    else:
-        print("Step 1: Extracted invoice data:\n", invoice_data)
-        print("Step 2: Contract details:\n", contract_data)
-        print("Step 3: Business rules:\n", business_rules)
-        print("Step 4: Verdict:\n", verdict)
-        print("Step 5: Post result:\n", post_result)
+    print("\n" + "=" * 60)
+    print("WORKFLOW COMPLETE")
+    print("=" * 60)
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description='Process purchase invoice image (stepwise).')
     parser.add_argument('--image', type=str, default="data_files/Invoice-002.png", help='Path to the purchase invoice image file')
-    parser.add_argument('--streamlit_mode', action='store_true', help='Return results as dict for Streamlit UI')
     args = parser.parse_args()
-    asyncio.run(main(image_path=args.image, streamlit_mode=args.streamlit_mode))
+    asyncio.run(main(image_path=args.image))

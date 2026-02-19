@@ -3,5 +3,3 @@ python-dotenv
 playwright
 azure-identity
 Pillow
-streamlit
-nest_asyncio
