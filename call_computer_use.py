@@ -323,7 +323,7 @@ async def post_purchase_invoice_header(instructions: str):
     async with LocalPlaywrightComputer() as computer:
         tools = [
             {
-                "type": "computer-preview",
+                "type": "computer_use_preview",
                 "display_width": computer.dimensions[0],
                 "display_height": computer.dimensions[1],
                 "environment": computer.environment,
@@ -449,7 +449,7 @@ async def retrieve_contract(contractid:str, instructions: str):
     async with LocalPlaywrightComputer() as computer:
         tools = [
             {
-                "type": "computer-preview",
+                "type": "computer_use_preview",
                 "display_width": computer.dimensions[0],
                 "display_height": computer.dimensions[1],
                 "environment": computer.environment,
